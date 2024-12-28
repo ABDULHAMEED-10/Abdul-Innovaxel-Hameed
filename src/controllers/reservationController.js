@@ -1,4 +1,5 @@
 const Reservation = require("../models/Reservation");
+const sendEmail = require("../utils/sendEmail");
 
 // Create a Reservation
 const createReservation = (req, res) => {
@@ -8,6 +9,20 @@ const createReservation = (req, res) => {
       res
         .status(201)
         .json({ message: "Reservation created successfully", reservation });
+
+      // Send confirmation email
+      sendEmail(
+        {
+          to: reservation.user.email,
+          subject: "Reservation Confirmation",
+          text: `Your reservation for ${reservation.movie.title} has been confirmed`,
+        },
+        (error) => {
+          if (error) {
+            console.error("Error sending email: ", error);
+          }
+        }
+      );
     })
     .catch((err) => {
       res.status(500).json({ error: err.message });

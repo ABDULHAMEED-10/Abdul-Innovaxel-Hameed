@@ -119,11 +119,18 @@ const resetPassword = (req, res) => {
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
     user.save();
 
-    sendEmail({
-      to: user.email,
-      subject: "Password Reset Request",
-      text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
-    });
+    sendEmail(
+      {
+        to: user.email,
+        subject: "Password Reset Request",
+        text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
+      },
+      (error) => {
+        if (error) {
+          console.error("Error sending email: ", error);
+        }
+      }
+    );
 
     res.status(200).json({ message: "Password reset link sent to your email" });
   });
