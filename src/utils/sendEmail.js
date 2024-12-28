@@ -2,7 +2,7 @@ const transporter = require("../config/nodemailer");
 
 const sendEmail = ({ to, subject, text, html }) => {
   const mailOptions = {
-    from: process.env.EMAIL_USER, // Sender email address
+    from: process.env.SMPT_USER, // Sender email address
     to, // Recipient email address
     subject, // Email subject
     text, // Plain text content
