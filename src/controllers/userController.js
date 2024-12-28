@@ -7,34 +7,28 @@ const sendEmail = require("../utils/sendEmail");
 const registerUser = (req, res) => {
   const { name, email, password } = req.body;
 
-  User.findOne({ email })
-    .then((userExists) => {
-      if (userExists) {
-        return res.status(400).json({ message: "User already exists" });
-      }
+  User.create({ name, email, password })
+    .then((user) => {
+      const token = jwt.sign(
+        { id: user._id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
 
-      const newUser = new User({ name, email, password });
-      return newUser.save();
-    })
-    .then((newUser) => {
-      return sendEmail({
-        to: email,
-        subject: "Welcome to Movie Booking App",
-        text: `Hi ${name}, Welcome to our platform!`,
-        html: `<h1>Hi ${name},</h1><p>Welcome to our movie booking platform!</p>`,
-      }).then(() => {
-        res
-          .status(201)
-          .json({ message: "User registered successfully", user: newUser });
+      sendEmail({
+        to: user.email,
+        subject: "Account Created Successfully",
+        text: `Welcome to our platform, ${user.name}`,
       });
+
+      res.status(201).json({ message: "User created successfully", token });
     })
     .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to register user", error: error.message });
+        .json({ message: "Failed to create user", error: error.message });
     });
 };
-
 // Login user
 const loginUser = (req, res) => {
   const { email, password } = req.body;
@@ -64,6 +58,30 @@ const loginUser = (req, res) => {
     });
 };
 
+// update user profile with avatar
+const updateUserProfile = (req, res) => {
+  const { name, email, avatar } = req;
+  User.findById(req.user.id)
+    .then((user) => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      user.name = name || user.name;
+      user.email = email || user.email;
+      user.avatar = avatar || user.avatar;
+      return user.save();
+    })
+    .then((user) => {
+      res.status(200).json({ message: "User updated successfully", user });
+    })
+    .catch((error) => {
+      res
+        .status(500)
+        .json({ message: "Failed to update user", error: error.message });
+    });
+};
+
 // Get user profile
 const getUserProfile = (req, res) => {
   User.findById(req.user.id)
@@ -80,6 +98,52 @@ const getUserProfile = (req, res) => {
         message: "Failed to fetch user profile",
         error: error.message,
       });
+    });
+};
+// reset user password
+const resetPassword = (req, res) => {
+  const { email } = req.body;
+
+  User.findOne({
+    email,
+  }).then((user) => {
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "10m",
+    });
+
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.save();
+
+    sendEmail({
+      to: user.email,
+      subject: "Password Reset Request",
+      text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
+    });
+
+    res.status(200).json({ message: "Password reset link sent to your email" });
+  });
+};
+
+// Get all users (Admin only)
+const getUsers = (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  User.find()
+    .select("-password")
+    .then((users) => {
+      res.status(200).json(users);
+    })
+    .catch((error) => {
+      res
+        .status(500)
+        .json({ message: "Failed to fetch users", error: error.message });
     });
 };
 
@@ -111,4 +175,41 @@ const updateUserRole = (req, res) => {
     });
 };
 
-module.exports = { registerUser, loginUser, getUserProfile, updateUserRole };
+// delete user (Admin only)
+const deleteUser = (req, res) => {
+  const { id } = req.params;
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Access denied" });
+  }
+
+  User.findByIdAndDelete(id)
+    .then((user) => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.status(200).json({ message: "User deleted successfully" });
+    })
+    .catch((error) => {
+      res
+        .status(500)
+        .json({ message: "Failed to delete user", error: error.message });
+    });
+};
+
+// Logout user
+const logoutUser = (req, res) => {
+  res.status(200).json({ message: "Logout successful" });
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getUserProfile,
+  updateUserRole,
+  deleteUser,
+  logoutUser,
+  updateUserProfile,
+  getUsers,
+};

@@ -1,7 +1,7 @@
 const Reservation = require("../models/Reservation");
 
 // Create a Reservation
-exports.createReservation = (req, res) => {
+const createReservation = (req, res) => {
   const { user, movie, showtime, seatNumbers } = req.body;
   Reservation.create({ user, movie, showtime, seatNumbers })
     .then((reservation) => {
@@ -15,7 +15,7 @@ exports.createReservation = (req, res) => {
 };
 
 // Get Reservations by User
-exports.getUserReservations = (req, res) => {
+const getUserReservations = (req, res) => {
   const { userId } = req.params;
   Reservation.find({ user: userId })
     .populate("movie")
@@ -28,7 +28,7 @@ exports.getUserReservations = (req, res) => {
 };
 
 // Cancel a Reservation
-exports.cancelReservation = (req, res) => {
+const cancelReservation = (req, res) => {
   const { id } = req.params;
   Reservation.findByIdAndDelete(id)
     .then((reservation) => {
@@ -41,3 +41,5 @@ exports.cancelReservation = (req, res) => {
       res.status(500).json({ error: err.message });
     });
 };
+
+module.exports = { createReservation, getUserReservations, cancelReservation };
