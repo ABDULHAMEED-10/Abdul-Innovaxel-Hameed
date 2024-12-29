@@ -16,6 +16,7 @@ const createReservation = (req, res) => {
           to: reservation.user.email,
           subject: "Reservation Confirmation",
           text: `Your reservation for ${reservation.movie.title} has been confirmed`,
+          html: `<p>Your reservation for ${reservation.movie.title} has been confirmed</p>`,
         },
         (error) => {
           if (error) {
@@ -45,12 +46,19 @@ const getUserReservations = (req, res) => {
 // Cancel a Reservation
 const cancelReservation = (req, res) => {
   const { id } = req.params;
-  Reservation.findByIdAndDelete(id)
+  Reservation.findById(id)
     .then((reservation) => {
       if (!reservation)
         return res.status(404).json({ message: "Reservation not found" });
 
-      res.status(200).json({ message: "Reservation cancelled successfully" });
+      reservation.status = "cancelled";
+      return reservation.save();
+    })
+    .then((updatedReservation) => {
+      res.status(200).json({
+        message: "Reservation cancelled successfully",
+        reservation: updatedReservation,
+      });
     })
     .catch((err) => {
       res.status(500).json({ error: err.message });

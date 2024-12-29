@@ -10,7 +10,7 @@ const registerUser = (req, res) => {
   User.create({ name, email, password })
     .then((user) => {
       const token = jwt.sign(
-        { id: user._id, role: user.role },
+        { id: user._id, email: user.email, role: user.role },
         process.env.JWT_SECRET,
         { expiresIn: "1d" }
       );
@@ -21,7 +21,9 @@ const registerUser = (req, res) => {
         text: `Welcome to our platform, ${user.name}`,
       });
 
-      res.status(201).json({ message: "User created successfully", token });
+      res
+        .status(201)
+        .json({ message: "User created successfully", token, user });
     })
     .catch((error) => {
       res
@@ -50,7 +52,7 @@ const loginUser = (req, res) => {
           { expiresIn: "1d" }
         );
 
-        res.status(200).json({ message: "Login successful", token });
+        res.status(200).json({ message: "Login successful", token, user });
       });
     })
     .catch((error) => {
@@ -60,7 +62,7 @@ const loginUser = (req, res) => {
 
 // update user profile with avatar
 const updateUserProfile = (req, res) => {
-  const { name, email, avatar } = req;
+  const { name, email, avatar } = req.body;
   User.findById(req.user.id)
     .then((user) => {
       if (!user) {
@@ -70,6 +72,7 @@ const updateUserProfile = (req, res) => {
       user.name = name || user.name;
       user.email = email || user.email;
       user.avatar = avatar || user.avatar;
+
       return user.save();
     })
     .then((user) => {
@@ -207,6 +210,8 @@ const deleteUser = (req, res) => {
 
 // Logout user
 const logoutUser = (req, res) => {
+  // Clear the token from cookies
+  res.clearCookie("token");
   res.status(200).json({ message: "Logout successful" });
 };
 
@@ -219,4 +224,5 @@ module.exports = {
   logoutUser,
   updateUserProfile,
   getUsers,
+  resetPassword,
 };

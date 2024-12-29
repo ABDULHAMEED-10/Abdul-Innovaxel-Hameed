@@ -5,6 +5,7 @@ const reservationSchema = new mongoose.Schema({
   movie: { type: mongoose.Schema.Types.ObjectId, ref: "Movie", required: true },
   showtime: { type: String, required: true },
   seatNumbers: { type: [String], required: true },
+  status: { type: String, enum: ["active", "cancelled"], default: "active" },
 });
 
 module.exports = mongoose.model("Reservation", reservationSchema);

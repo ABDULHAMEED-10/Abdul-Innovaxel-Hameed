@@ -25,5 +25,8 @@ Thumbs.db
 *.sln
 *.sw?
 
+# Ignore npm debug log
+npm-debug.log*
+
 # Ignore coverage reports
 coverage/
