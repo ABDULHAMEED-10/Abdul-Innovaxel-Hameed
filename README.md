@@ -1,6 +1,6 @@
 # Abdul Innovaxel Hameed
 
-Welcome to my project! This README file will guide you through the setup and usage of the project.
+Backend Assesment for Innovaxel Company! This README file will guide you through the setup and usage of the project.
 
 ## Table of Contents
 - [Introduction](#introduction)
