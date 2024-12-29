@@ -138,7 +138,33 @@ const resetPassword = (req, res) => {
     res.status(200).json({ message: "Password reset link sent to your email" });
   });
 };
+//set new password
+const setNewPassword = (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
 
+  if (!token) {
+    return res.status(400).json({ message: "Invalid token" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+    if (error) {
+      return res.status(401).json({ message: "Expired or invalid token" });
+    }
+
+    User.findOne({
+      _id: decoded.id,
+    }).then((user) => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      user.password = password;
+      user.save();
+
+      res.status(200).json({ message: "Password updated successfully" });
+    });
+  });
+};
 // Get all users (Admin only)
 const getUsers = (req, res) => {
   if (req.user.role !== "admin") {
@@ -225,4 +251,5 @@ module.exports = {
   updateUserProfile,
   getUsers,
   resetPassword,
+  setNewPassword,
 };

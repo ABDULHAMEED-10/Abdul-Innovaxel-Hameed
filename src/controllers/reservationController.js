@@ -13,6 +13,7 @@ const createReservation = (req, res) => {
       // Send confirmation email
       sendEmail(
         {
+          from: process.env.SMTP_USER,
           to: reservation.user.email,
           subject: "Reservation Confirmation",
           text: `Your reservation for ${reservation.movie.title} has been confirmed`,
@@ -42,7 +43,28 @@ const getUserReservations = (req, res) => {
       res.status(500).json({ error: err.message });
     });
 };
-
+//show active reservations
+const getActiveReservations = (req, res) => {
+  Reservation.find({ status: "active" })
+    .populate("movie")
+    .then((reservations) => {
+      res.status(200).json(reservations);
+    })
+    .catch((err) => {
+      res.status(500).json({ error: err.message });
+    });
+};
+// show cancelled reservations
+const getCancelledReservations = (req, res) => {
+  Reservation.find({ status: "cancelled" })
+    .populate("movie")
+    .then((reservations) => {
+      res.status(200).json(reservations);
+    })
+    .catch((err) => {
+      res.status(500).json({ error: err.message });
+    });
+};
 // Cancel a Reservation
 const cancelReservation = (req, res) => {
   const { id } = req.params;
@@ -55,6 +77,21 @@ const cancelReservation = (req, res) => {
       return reservation.save();
     })
     .then((updatedReservation) => {
+      // Send confirmation email
+      sendEmail(
+        {
+          from: process.env.SMTP_USER,
+          to: updatedReservation.user.email,
+          subject: "Reservation Confirmation",
+          text: `Your reservation for ${updatedReservation.movie.title} has been cancelled`,
+          html: `<p>Your reservation for ${updatedReservation.movie.title} has been cancelled</p>`,
+        },
+        (error) => {
+          if (error) {
+            console.error("Error sending email: ", error);
+          }
+        }
+      );
       res.status(200).json({
         message: "Reservation cancelled successfully",
         reservation: updatedReservation,
@@ -65,4 +102,10 @@ const cancelReservation = (req, res) => {
     });
 };
 
-module.exports = { createReservation, getUserReservations, cancelReservation };
+module.exports = {
+  createReservation,
+  getUserReservations,
+  cancelReservation,
+  getActiveReservations,
+  getCancelledReservations,
+};

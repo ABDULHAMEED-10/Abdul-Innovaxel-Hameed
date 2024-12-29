@@ -49,6 +49,18 @@ const updateMovie = (req, res) => {
     );
 };
 
+//get movie by genre
+const getMovieByGenre = (req, res) => {
+  const { genre } = req.params;
+  Movie.find({ genres: genre })
+    .then((movies) => {
+      res.status(200).json(movies);
+    })
+    .catch((err) => {
+      res.status(500).json({ error: err.message });
+    });
+};
+
 // Delete a movie
 const deleteMovie = (req, res) => {
   const { id } = req.params;
@@ -73,4 +85,5 @@ module.exports = {
   addMovie,
   updateMovie,
   deleteMovie,
+  getMovieByGenre,
 };

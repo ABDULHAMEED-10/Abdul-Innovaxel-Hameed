@@ -4,6 +4,7 @@ const {
   addMovie,
   updateMovie,
   deleteMovie,
+  getMovieByGenre,
 } = require("../controllers/movieController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
@@ -11,6 +12,7 @@ const upload = require("../middlewares/uploadMiddleware");
 const router = express.Router();
 
 router.get("/", getAllMovies);
+router.get("/genre/:genre", getMovieByGenre);
 router.post(
   "/",
   authMiddleware,
@@ -29,6 +31,7 @@ router.put(
   ]),
   updateMovie
 );
+
 router.delete("/:id", authMiddleware, deleteMovie);
 
 module.exports = router;

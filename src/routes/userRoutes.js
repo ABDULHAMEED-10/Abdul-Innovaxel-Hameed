@@ -9,6 +9,7 @@ const {
   updateUserProfile,
   getUsers,
   resetPassword,
+  setNewPassword,
 } = require("../controllers/userController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
@@ -20,6 +21,7 @@ router.delete("/delete/:id", authMiddleware, deleteUser);
 router.post("/logout", authMiddleware, logoutUser);
 router.put("/profile", authMiddleware, updateUserProfile);
 router.post("/resetpassword", resetPassword);
+router.put("/setnewpassword", setNewPassword);
 router.get("/profile", authMiddleware, getUserProfile);
 router.put("/role/:id", authMiddleware, updateUserRole);
 router.get("/", authMiddleware, getUsers);
