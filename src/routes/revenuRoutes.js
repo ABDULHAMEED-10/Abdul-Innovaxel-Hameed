@@ -6,6 +6,6 @@ const adminMiddleware = require("../middlewares/adminMiddleware");
 const router = express.Router();
 
 // Calculate revenue route (protected, admin only)
-router.get("/revenue", authMiddleware, adminMiddleware, calculateRevenue);
+router.get("/", authMiddleware, adminMiddleware, calculateRevenue);
 
 module.exports = router;
