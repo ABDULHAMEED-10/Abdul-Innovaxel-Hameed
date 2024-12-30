@@ -257,6 +257,14 @@ const getActiveReservations = (req, res) => {
 // Show Cancelled Reservations (admin only)
 const getCancelledReservations = (req, res) => {
   Reservation.find({ status: "cancelled" })
+    .populate("movie")
+    .populate({
+      path: "showtime",
+      populate: {
+        path: "cinema",
+        model: "Cinema",
+      },
+    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
