@@ -7,6 +7,10 @@ const sendEmail = require("../utils/sendEmail");
 const registerUser = (req, res) => {
   const { name, email, password } = req.body;
 
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: "All fields are required." });
+  }
+
   User.create({ name, email, password })
     .then((user) => {
       const token = jwt.sign(
@@ -25,15 +29,22 @@ const registerUser = (req, res) => {
         .status(201)
         .json({ message: "User created successfully", token, user });
     })
-    .catch((error) => {
+    .catch((error) =>
       res
         .status(500)
-        .json({ message: "Failed to create user", error: error.message });
-    });
+        .json({ message: "Failed to create user", error: error.message })
+    );
 };
+
 // Login user
 const loginUser = (req, res) => {
   const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res
+      .status(400)
+      .json({ message: "Email and password are required." });
+  }
 
   User.findOne({ email })
     .then((user) => {
@@ -55,14 +66,15 @@ const loginUser = (req, res) => {
         res.status(200).json({ message: "Login successful", token, user });
       });
     })
-    .catch((error) => {
-      res.status(500).json({ message: "Login failed", error: error.message });
-    });
+    .catch((error) =>
+      res.status(500).json({ message: "Login failed", error: error.message })
+    );
 };
 
-// update user profile with avatar
+// Update user profile with avatar
 const updateUserProfile = (req, res) => {
   const { name, email, avatar } = req.body;
+
   User.findById(req.user.id)
     .then((user) => {
       if (!user) {
@@ -78,17 +90,17 @@ const updateUserProfile = (req, res) => {
     .then((user) => {
       res.status(200).json({ message: "User updated successfully", user });
     })
-    .catch((error) => {
+    .catch((error) =>
       res
         .status(500)
-        .json({ message: "Failed to update user", error: error.message });
-    });
+        .json({ message: "Failed to update user", error: error.message })
+    );
 };
 
 // Get user profile
 const getUserProfile = (req, res) => {
   User.findById(req.user.id)
-    .select("-password") // Exclude password from the response
+    .select("-password")
     .then((user) => {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -96,91 +108,107 @@ const getUserProfile = (req, res) => {
 
       res.status(200).json(user);
     })
-    .catch((error) => {
-      res.status(500).json({
-        message: "Failed to fetch user profile",
-        error: error.message,
-      });
-    });
+    .catch((error) =>
+      res
+        .status(500)
+        .json({ message: "Failed to fetch user profile", error: error.message })
+    );
 };
-// reset user password
+
+// Reset user password
 const resetPassword = (req, res) => {
   const { email } = req.body;
 
-  User.findOne({
-    email,
-  }).then((user) => {
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+  if (!email) {
+    return res.status(400).json({ message: "Email is required." });
+  }
 
-    const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "10m",
-    });
-
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    user.save();
-
-    sendEmail(
-      {
-        to: user.email,
-        subject: "Password Reset Request",
-        text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
-      },
-      (error) => {
-        if (error) {
-          console.error("Error sending email: ", error);
-        }
+  User.findOne({ email })
+    .then((user) => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
       }
-    );
 
-    res.status(200).json({ message: "Password reset link sent to your email" });
-  });
+      const resetToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: "10m",
+      });
+
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+      return user.save().then(() => {
+        sendEmail({
+          to: user.email,
+          subject: "Password Reset Request",
+          text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
+        });
+
+        res
+          .status(200)
+          .json({ message: "Password reset link sent to your email" });
+      });
+    })
+    .catch((error) =>
+      res
+        .status(500)
+        .json({ message: "Failed to send reset email", error: error.message })
+    );
 };
-//set new password
+
+// Set new password
 const setNewPassword = (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
 
-  if (!token) {
-    return res.status(400).json({ message: "Invalid token" });
+  if (!token || !password) {
+    return res
+      .status(400)
+      .json({ message: "Token and password are required." });
   }
 
   jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
     if (error) {
-      return res.status(401).json({ message: "Expired or invalid token" });
+      return res.status(401).json({ message: "Expired or invalid token." });
     }
 
-    User.findOne({
-      _id: decoded.id,
-    }).then((user) => {
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      user.password = password;
-      user.save();
+    User.findById(decoded.id)
+      .then((user) => {
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
 
-      res.status(200).json({ message: "Password updated successfully" });
-    });
+        return bcrypt.hash(password, 10).then((hashedPassword) => {
+          user.password = hashedPassword;
+          user.resetPasswordToken = undefined;
+          user.resetPasswordExpire = undefined;
+
+          return user
+            .save()
+            .then(() =>
+              res.status(200).json({ message: "Password updated successfully" })
+            );
+        });
+      })
+      .catch((error) =>
+        res
+          .status(500)
+          .json({ message: "Failed to update password", error: error.message })
+      );
   });
 };
+
 // Get all users (Admin only)
 const getUsers = (req, res) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Access denied" });
-  }
-
   User.find()
     .select("-password")
     .then((users) => {
       res.status(200).json(users);
     })
-    .catch((error) => {
+    .catch((error) =>
       res
         .status(500)
-        .json({ message: "Failed to fetch users", error: error.message });
-    });
+        .json({ message: "Failed to fetch users", error: error.message })
+    );
 };
 
 // Update user role (Admin only)
@@ -188,8 +216,8 @@ const updateUserRole = (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
 
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Access denied" });
+  if (!["admin", "user"].includes(role)) {
+    return res.status(400).json({ message: "Invalid role." });
   }
 
   User.findById(id)
@@ -201,23 +229,21 @@ const updateUserRole = (req, res) => {
       user.role = role;
       return user.save();
     })
-    .then((user) => {
-      res.status(200).json({ message: "User role updated successfully", user });
-    })
-    .catch((error) => {
+    .then((updatedUser) =>
+      res
+        .status(200)
+        .json({ message: "Role updated successfully", user: updatedUser })
+    )
+    .catch((error) =>
       res
         .status(500)
-        .json({ message: "Failed to update user role", error: error.message });
-    });
+        .json({ message: "Failed to update role", error: error.message })
+    );
 };
 
-// delete user (Admin only)
+// Delete user (Admin only)
 const deleteUser = (req, res) => {
   const { id } = req.params;
-
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Access denied" });
-  }
 
   User.findByIdAndDelete(id)
     .then((user) => {
@@ -227,16 +253,15 @@ const deleteUser = (req, res) => {
 
       res.status(200).json({ message: "User deleted successfully" });
     })
-    .catch((error) => {
+    .catch((error) =>
       res
         .status(500)
-        .json({ message: "Failed to delete user", error: error.message });
-    });
+        .json({ message: "Failed to delete user", error: error.message })
+    );
 };
 
 // Logout user
 const logoutUser = (req, res) => {
-  // Clear the token from cookies
   res.clearCookie("token");
   res.status(200).json({ message: "Logout successful" });
 };

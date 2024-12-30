@@ -8,6 +8,7 @@ const {
 } = require("../controllers/movieController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/uploadMiddleware");
+const adminMiddleware = require("../middlewares/adminMiddleware");
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.get("/genre/:genre", getMovieByGenre);
 router.post(
   "/",
   authMiddleware,
+  adminMiddleware,
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "video", maxCount: 1 },
@@ -25,6 +27,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
+  adminMiddleware,
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "video", maxCount: 1 },
@@ -32,6 +35,6 @@ router.put(
   updateMovie
 );
 
-router.delete("/:id", authMiddleware, deleteMovie);
+router.delete("/:id", authMiddleware, adminMiddleware, deleteMovie);
 
 module.exports = router;

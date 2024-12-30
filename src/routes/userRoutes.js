@@ -12,18 +12,20 @@ const {
   setNewPassword,
 } = require("../controllers/userController");
 const authMiddleware = require("../middlewares/authMiddleware");
+const adminMiddleware = require("../middlewares/adminMiddleware");
 
 const router = express.Router();
 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
-router.delete("/delete/:id", authMiddleware, deleteUser);
 router.post("/logout", authMiddleware, logoutUser);
 router.put("/profile", authMiddleware, updateUserProfile);
 router.post("/resetpassword", resetPassword);
 router.put("/setnewpassword", setNewPassword);
 router.get("/profile", authMiddleware, getUserProfile);
-router.put("/role/:id", authMiddleware, updateUserRole);
-router.get("/", authMiddleware, getUsers);
+
+router.delete("/delete/:id", authMiddleware, adminMiddleware, deleteUser);
+router.put("/role/:id", authMiddleware, adminMiddleware, updateUserRole);
+router.get("/", authMiddleware, adminMiddleware, getUsers);
 
 module.exports = router;
