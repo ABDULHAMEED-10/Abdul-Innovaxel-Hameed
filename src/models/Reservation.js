@@ -10,7 +10,11 @@ const reservationSchema = new mongoose.Schema({
   },
 
   totalPrice: { type: Number, required: true }, // Total price for all seats
-  status: { type: String, enum: ["active", "cancelled"], default: "active" },
+  status: {
+    type: String,
+    enum: ["active", "cancelled", "locked"],
+    default: "active",
+  },
 });
 
 module.exports = mongoose.model("Reservation", reservationSchema);

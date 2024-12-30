@@ -3,6 +3,16 @@ const sendEmail = require("../utils/sendEmail");
 const Showtime = require("../models/Showtime");
 const Cinema = require("../models/Cinema");
 
+// Unlock expired seats
+const unlockExpiredSeats = () => {
+  const now = new Date();
+  Reservation.updateMany(
+    { status: "locked", lockExpiresAt: { $lte: now } },
+    { status: "cancelled", lockExpiresAt: null }
+  ).exec();
+};
+setInterval(unlockExpiredSeats, 60 * 1000);
+
 // Get Reserved Seats Info
 const getReservedSeatsInfo = (req, res) => {
   const { showtimeId } = req.params;
@@ -59,14 +69,6 @@ const createReservation = (req, res) => {
 
       const cinemaDoc = showtimeDoc.cinema;
 
-      // Check if there are enough remaining seats
-      if (
-        cinemaDoc.capacity - showtimeDoc.reservations.length <
-        seatNumbers.length
-      ) {
-        return res.status(400).json({ message: "Not enough remaining seats" });
-      }
-
       // Check if the requested seat numbers are available
       return Reservation.find({ showtime }).then((reservations) => {
         const reservedSeats = reservations.flatMap(
@@ -80,24 +82,46 @@ const createReservation = (req, res) => {
           return res.status(400).json({
             message: `Seats ${unavailableSeats.join(
               ", "
-            )} are already reserved`,
+            )} are already reserved or locked`,
           });
         }
 
-        // Calculate total price
-        const totalPrice = showtimeDoc.price * seatNumbers.length;
-
-        // Create a new reservation
+        // Lock the seats
+        const lockExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
         return Reservation.create({
           user,
           movie,
           showtime,
           seatNumbers,
-          totalPrice,
-        }).then((reservation) => {
-          // Add the new reservation to the showtime's reservations
-          showtimeDoc.reservations.push(reservation._id);
-          return showtimeDoc.save().then(() => reservation);
+          totalPrice: 0, // No price for locked seats
+          status: "locked",
+          lockExpiresAt,
+        }).then((lockedReservation) => {
+          // Calculate total price
+          const totalPrice = showtimeDoc.price * seatNumbers.length;
+
+          // Create a new reservation
+          return Reservation.create({
+            user,
+            movie,
+            showtime,
+            seatNumbers,
+            totalPrice,
+            status: "active",
+          }).then((reservation) => {
+            // Update remaining seats
+            cinemaDoc.remainingSeats -= seatNumbers.length;
+            return cinemaDoc.save().then(() => {
+              // Add the new reservation to the showtime's reservations
+              showtimeDoc.reservations.push(reservation._id);
+              return showtimeDoc.save().then(() => {
+                // Remove the lock
+                return Reservation.findByIdAndDelete(
+                  lockedReservation._id
+                ).then(() => reservation);
+              });
+            });
+          });
         });
       });
     })
@@ -135,7 +159,6 @@ const createReservation = (req, res) => {
         .json({ message: "Failed to create reservation", error: err.message });
     });
 };
-
 // Cancel a Reservation
 const cancelReservation = (req, res) => {
   const { id } = req.params;
