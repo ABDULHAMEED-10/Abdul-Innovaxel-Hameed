@@ -7,23 +7,33 @@ const authRoutes = require("./routes/authRoutes");
 const movieRoutes = require("./routes/movieRoutes");
 const reservationRoutes = require("./routes/reservationRoutes");
 const userRoutes = require("./routes/userRoutes");
+const revenueRoutes = require("./routes/revenueRoutes");
+const showtimeRoutes = require("./routes/showtimeRoutes");
 
 dotenv.config();
 
 const app = express();
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors()
+  // {
+  //     origin: "http://localhost:3000",
+  //     credentials: true,
+  // }
+);
 
 // Database Connection
 connectDB();
 
 // Routes
 
-app.use("/api/auth", authRoutes);
+app.use("/api/Oauth", authRoutes);
 app.use("/api/movies", movieRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/revenue", revenueRoutes);
+app.use("/api/showtimes", showtimeRoutes);
 
 // Error Handler
 app.use(errorHandler);
