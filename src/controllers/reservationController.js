@@ -1,11 +1,35 @@
 const Reservation = require("../models/Reservation");
 const sendEmail = require("../utils/sendEmail");
+const Showtime = require("../models/Showtime");
+const Cinema = require("../models/Cinema");
 
 // Create a Reservation
 const createReservation = (req, res) => {
   const { user, movie, showtime, seatNumbers } = req.body;
 
-  Reservation.create({ user, movie, showtime, seatNumbers })
+  Showtime.findById(showtime)
+    .populate("cinema")
+    .then((showtimeDoc) => {
+      if (!showtimeDoc) {
+        return res.status(404).json({ message: "Showtime not found" });
+      }
+
+      const cinemaDoc = showtimeDoc.cinema;
+
+      // Check if there are enough remaining seats
+      if (cinemaDoc.remainingSeats < seatNumbers.length) {
+        return res.status(400).json({ message: "Not enough remaining seats" });
+      }
+
+      // Create a new reservation
+      return Reservation.create({ user, movie, showtime, seatNumbers }).then(
+        (reservation) => {
+          // Update remaining seats
+          cinemaDoc.remainingSeats -= seatNumbers.length;
+          return cinemaDoc.save().then(() => reservation);
+        }
+      );
+    })
     .then((reservation) => {
       res.status(201).json({
         message: "Reservation created successfully",
@@ -15,7 +39,7 @@ const createReservation = (req, res) => {
       // Send confirmation email
       return sendEmail({
         from: process.env.SMTP_USER,
-        to: req.user.email, // Assuming the user email is attached to req.user
+        to: req.user.email,
         subject: "Reservation Confirmation",
         text: `Your reservation for the movie has been confirmed.`,
         html: `<p>Your reservation for the movie has been confirmed.</p>`,
@@ -40,13 +64,28 @@ const cancelReservation = (req, res) => {
       }
 
       reservation.status = "cancelled";
-      return reservation.save();
+      return reservation.save().then(() => reservation);
+    })
+    .then((reservation) => {
+      return Showtime.findById(reservation.showtime)
+        .populate("cinema")
+        .then((showtimeDoc) => {
+          if (!showtimeDoc) {
+            return res.status(404).json({ message: "Showtime not found" });
+          }
+
+          const cinemaDoc = showtimeDoc.cinema;
+
+          // Update remaining seats
+          cinemaDoc.remainingSeats += reservation.seatNumbers;
+          return cinemaDoc.save().then(() => reservation);
+        });
     })
     .then((updatedReservation) => {
       // Send cancellation email
       return sendEmail({
         from: process.env.SMTP_USER,
-        to: req.user.email, // Assuming the user email is attached to req.user
+        to: req.user.email,
         subject: "Reservation Cancellation",
         text: `Your reservation for the movie has been cancelled.`,
         html: `<p>Your reservation for the movie has been cancelled.</p>`,
@@ -64,6 +103,7 @@ const cancelReservation = (req, res) => {
         .json({ message: "Failed to cancel reservation", error: err.message });
     });
 };
+
 // Get Reservations by User ID
 const getUserReservations = (req, res) => {
   const { userId } = req.params;
