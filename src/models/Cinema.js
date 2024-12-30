@@ -14,7 +14,13 @@ const CinemaSchema = new Schema({
   capacity: {
     type: Number,
     required: true,
-    default: 800,
+  },
+  availableSeats: {
+    type: [String],
+    required: true,
+    default: function () {
+      return Array.from({ length: this.capacity }, (_, i) => `Seat ${i + 1}`);
+    },
   },
 });
 

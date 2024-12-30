@@ -16,7 +16,7 @@ const router = express.Router();
 // user routes
 router.post("/", authMiddleware, createReservation);
 router.get("/:userId", authMiddleware, getUserReservations);
-router.delete("/:id", authMiddleware, cancelReservation);
+router.put("/:id", authMiddleware, cancelReservation);
 router.get("/seats/:showtimeId", authMiddleware, getReservedSeatsInfo);
 
 // admin routes

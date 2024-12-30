@@ -2,6 +2,7 @@ const Showtime = require("../models/Showtime");
 const Reservation = require("../models/Reservation");
 const Cinema = require("../models/Cinema");
 const Movie = require("../models/Movie");
+const mongoose = require("mongoose");
 
 // Get all showtimes with related movie and cinema details
 const getShowtimes = (req, res) => {
@@ -22,32 +23,47 @@ const addShowtime = (req, res) => {
   if (!movie || !cinema || !date || !time || !price) {
     return res.status(400).json({ message: "All fields are required." });
   }
+
+  // Validate ObjectId
+  if (
+    !mongoose.Types.ObjectId.isValid(movie) ||
+    !mongoose.Types.ObjectId.isValid(cinema)
+  ) {
+    return res.status(400).json({ message: "Invalid movie or cinema ID" });
+  }
+
   // Check if the movie exists
-  Movie.findById(movie).then((movieDoc) => {
-    if (!movieDoc) {
-      return res.status(404).json({ message: "Movie not found" });
-    }
-    // Check if the cinema exists
-    Cinema.findById(cinema)
-      .then((cinemaDoc) => {
-        if (!cinemaDoc) {
-          return res.status(404).json({ message: "Cinema not found" });
-        }
-        const showtime = new Showtime({ movie, cinema, date, time, price });
-        return showtime.save();
-      })
-      .then((savedShowtime) =>
-        res.status(201).json({
-          message: "Showtime added successfully",
-          showtime: savedShowtime,
+  Movie.findById(movie)
+    .then((movieDoc) => {
+      if (!movieDoc) {
+        return res.status(404).json({ message: "Movie not found" });
+      }
+      // Check if the cinema exists
+      Cinema.findById(cinema)
+        .then((cinemaDoc) => {
+          if (!cinemaDoc) {
+            return res.status(404).json({ message: "Cinema not found" });
+          }
+          const showtime = new Showtime({ movie, cinema, date, time, price });
+          return showtime.save();
         })
-      )
-      .catch((error) =>
-        res
-          .status(500)
-          .json({ message: "Failed to add showtime", error: error.message })
-      );
-  });
+        .then((savedShowtime) =>
+          res.status(201).json({
+            message: "Showtime added successfully",
+            showtime: savedShowtime,
+          })
+        )
+        .catch((error) =>
+          res
+            .status(500)
+            .json({ message: "Failed to add showtime", error: error.message })
+        );
+    })
+    .catch((error) =>
+      res
+        .status(500)
+        .json({ message: "Failed to add showtime", error: error.message })
+    );
 };
 
 // Update an existing showtime by ID (Admin only)

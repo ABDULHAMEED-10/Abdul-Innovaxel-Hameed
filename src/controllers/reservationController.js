@@ -1,7 +1,7 @@
 const Reservation = require("../models/Reservation");
 const sendEmail = require("../utils/sendEmail");
 const Showtime = require("../models/Showtime");
-const Cinema = require("../models/Cinema");
+const mongoose = require("mongoose");
 
 // Unlock expired seats
 const unlockExpiredSeats = () => {
@@ -17,6 +17,11 @@ setInterval(unlockExpiredSeats, 60 * 1000);
 const getReservedSeatsInfo = (req, res) => {
   const { showtimeId } = req.params;
 
+  // Validate ObjectId
+  if (!mongoose.Types.ObjectId.isValid(showtimeId)) {
+    return res.status(400).json({ message: "Invalid showtime ID" });
+  }
+
   Showtime.findById(showtimeId)
     .populate("cinema")
     .then((showtimeDoc) => {
@@ -28,13 +33,14 @@ const getReservedSeatsInfo = (req, res) => {
 
       // Calculate the number of reserved seats
       return Reservation.find({ showtime: showtimeId }).then((reservations) => {
-        const reservedSeats = reservations.flatMap(
-          (reservation) => reservation.seatNumbers
+        const reservedSeats = reservations
+          .flatMap((reservation) => reservation.seatNumbers)
+          .filter((seat) => seat !== null && seat !== undefined); // Filter out null or undefined values
+
+        const remainingSeats = cinemaDoc.availableSeats.filter(
+          (seat) => !reservedSeats.includes(seat)
         );
-        const remainingSeats = Array.from(
-          { length: cinemaDoc.capacity },
-          (_, i) => (i + 1).toString()
-        ).filter((seat) => !reservedSeats.includes(seat));
+
         const reservedSeatsCount = reservedSeats.length;
         const remainingSeatsCount = remainingSeats.length;
 
@@ -59,6 +65,21 @@ const getReservedSeatsInfo = (req, res) => {
 // Create a Reservation
 const createReservation = (req, res) => {
   const { user, movie, showtime, seatNumbers } = req.body;
+
+  // Validate ObjectId
+  if (
+    !mongoose.Types.ObjectId.isValid(movie) ||
+    !mongoose.Types.ObjectId.isValid(showtime)
+  ) {
+    return res.status(400).json({ message: "Invalid movie or showtime ID" });
+  }
+
+  // Ensure seatNumbers is an array and not empty
+  if (!Array.isArray(seatNumbers) || seatNumbers.length === 0) {
+    return res
+      .status(400)
+      .json({ message: "Seat numbers are required and must be an array" });
+  }
 
   Showtime.findById(showtime)
     .populate("cinema")
@@ -110,7 +131,9 @@ const createReservation = (req, res) => {
             status: "active",
           }).then((reservation) => {
             // Update remaining seats
-            cinemaDoc.remainingSeats -= seatNumbers.length;
+            cinemaDoc.availableSeats = cinemaDoc.availableSeats.filter(
+              (seat) => !seatNumbers.includes(seat)
+            );
             return cinemaDoc.save().then(() => {
               // Add the new reservation to the showtime's reservations
               showtimeDoc.reservations.push(reservation._id);
@@ -159,21 +182,15 @@ const createReservation = (req, res) => {
         .json({ message: "Failed to create reservation", error: err.message });
     });
 };
+
 // Cancel a Reservation
 const cancelReservation = (req, res) => {
-  const { id } = req.params;
+  const { reservationId } = req.params;
 
-  Reservation.findById(id)
+  Reservation.findById(reservationId)
     .then((reservation) => {
       if (!reservation) {
         return res.status(404).json({ message: "Reservation not found" });
-      }
-
-      // Check if reservation is already cancelled
-      if (reservation.status === "cancelled") {
-        return res
-          .status(400)
-          .json({ message: "Reservation already cancelled" });
       }
 
       reservation.status = "cancelled";
@@ -189,8 +206,10 @@ const cancelReservation = (req, res) => {
 
           const cinemaDoc = showtimeDoc.cinema;
 
-          // Update remaining seats
-          cinemaDoc.capacity += reservation.seatNumbers.length;
+          // Update available seats
+          cinemaDoc.availableSeats.push(...reservation.seatNumbers);
+          cinemaDoc.availableSeats = [...new Set(cinemaDoc.availableSeats)]; // Remove duplicates
+
           return cinemaDoc.save().then(() => reservation);
         });
     })

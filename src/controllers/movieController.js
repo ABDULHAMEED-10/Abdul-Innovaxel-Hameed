@@ -18,14 +18,14 @@ const addMovie = (req, res) => {
   const { title, description, genres, showtimes } = req.body;
 
   // Extract file paths from uploaded files
-  const videoUrl = req.files?.video?.[0]?.path;
-  const imageUrl = req.files?.image?.[0]?.path;
+  const videoUrl = req.files?.video?.[0]?.path || req.body.videoUrl || "";
+  const imageUrl = req.files?.image?.[0]?.path || req.body.imageUrl || "";
 
-  if (!videoUrl || !imageUrl) {
-    return res
-      .status(400)
-      .json({ message: "Video and image files are required." });
-  }
+  // if (!videoUrl || !imageUrl) {
+  //   return res
+  //     .status(400)
+  //     .json({ message: "Video and image files are required." });
+  // }
 
   Movie.create({ title, description, genres, showtimes, videoUrl, imageUrl })
     .then((movie) => res.status(201).json(movie))
@@ -42,8 +42,8 @@ const updateMovie = (req, res) => {
   const { title, description, genres, showtimes } = req.body;
 
   // Extract file paths from uploaded files
-  const videoUrl = req.files?.video?.[0]?.path;
-  const imageUrl = req.files?.image?.[0]?.path;
+  const videoUrl = req.files?.video?.[0]?.path || req.body.videoUrl || "";
+  const imageUrl = req.files?.image?.[0]?.path || req.body.imageUrl || "";
 
   // Build the update object dynamically
   const updateData = {
@@ -51,8 +51,10 @@ const updateMovie = (req, res) => {
     description,
     genres,
     showtimes,
-    ...(videoUrl && { videoUrl }), // Add only if videoUrl exists
-    ...(imageUrl && { imageUrl }), // Add only if imageUrl exists
+    videoUrl,
+    imageUrl,
+    // ...(videoUrl && { videoUrl }), // Add only if videoUrl exists
+    // ...(imageUrl && { imageUrl }), // Add only if imageUrl exists
   };
 
   Movie.findByIdAndUpdate(id, updateData, { new: true })

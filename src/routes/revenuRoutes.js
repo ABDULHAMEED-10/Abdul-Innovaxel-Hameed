@@ -1,5 +1,5 @@
 const express = require("express");
-const { calculateRevenue } = require("../controllers/revenueController");
+const { calculateRevenue } = require("../controllers/revenuController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const adminMiddleware = require("../middlewares/adminMiddleware");
 
