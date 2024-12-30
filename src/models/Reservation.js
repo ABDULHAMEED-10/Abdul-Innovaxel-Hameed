@@ -9,6 +9,7 @@ const reservationSchema = new mongoose.Schema({
     required: true,
   },
   seatNumbers: { type: [String], required: true },
+  totalPrice: { type: Number, required: true }, // Total price for all seats in USD
   status: { type: String, enum: ["active", "cancelled"], default: "active" },
 });
 

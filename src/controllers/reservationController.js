@@ -15,20 +15,32 @@ const createReservation = (req, res) => {
       }
 
       const cinemaDoc = showtimeDoc.cinema;
+      const numberOfSeats = seatNumbers.length;
+      const reservedSeats = showtimeDoc.reservations.reduce(
+        (acc, reservation) => acc + reservation.seatNumbers.length,
+        0 // Sum of all reserved seats
+      );
 
       // Check if there are enough remaining seats
-      if (cinemaDoc.remainingSeats < seatNumbers.length) {
+      if (cinemaDoc.remainingSeats < numberOfSeats) {
         return res.status(400).json({ message: "Not enough remaining seats" });
       }
 
+      // Calculate total price
+      const totalPrice = showtimeDoc.price * numberOfSeats;
+
       // Create a new reservation
-      return Reservation.create({ user, movie, showtime, seatNumbers }).then(
-        (reservation) => {
-          // Update remaining seats
-          cinemaDoc.remainingSeats -= seatNumbers.length;
-          return cinemaDoc.save().then(() => reservation);
-        }
-      );
+      return Reservation.create({
+        user,
+        movie,
+        showtime,
+        seatNumbers,
+        totalPrice,
+      }).then((reservation) => {
+        // Update remaining seats
+        cinemaDoc.remainingSeats -= seatNumbers.length;
+        return cinemaDoc.save().then(() => reservation);
+      });
     })
     .then((reservation) => {
       res.status(201).json({
@@ -42,7 +54,19 @@ const createReservation = (req, res) => {
         to: req.user.email,
         subject: "Reservation Confirmation",
         text: `Your reservation for the movie has been confirmed.`,
-        html: `<p>Your reservation for the movie has been confirmed.</p>`,
+        html: `
+          <p>Your reservation for the movie <strong>${
+            reservation.movie.title
+          }</strong> has been confirmed.</p>
+          <p><strong>Cinema:</strong> ${reservation.showtime.cinema.name}</p>
+          <p><strong>Showtime:</strong> ${reservation.showtime.date} at ${
+          reservation.showtime.time
+        }</p>
+          <p><strong>Seats:</strong> ${reservation.seatNumbers.join(", ")}</p>
+          <p><strong>Total Price:</strong> $${reservation.totalPrice.toFixed(
+            2
+          )}</p>
+        `,
       });
     })
     .catch((err) => {
@@ -63,6 +87,13 @@ const cancelReservation = (req, res) => {
         return res.status(404).json({ message: "Reservation not found" });
       }
 
+      // Check if reservation is already cancelled
+      if (reservation.status === "cancelled") {
+        return res
+          .status(400)
+          .json({ message: "Reservation already cancelled" });
+      }
+
       reservation.status = "cancelled";
       return reservation.save().then(() => reservation);
     })
@@ -78,6 +109,8 @@ const cancelReservation = (req, res) => {
 
           // Update remaining seats
           cinemaDoc.remainingSeats += reservation.seatNumbers;
+          // update total price
+          cinemaDoc.totalPrice -= reservation.totalPrice;
           return cinemaDoc.save().then(() => reservation);
         });
     })
@@ -88,7 +121,7 @@ const cancelReservation = (req, res) => {
         to: req.user.email,
         subject: "Reservation Cancellation",
         text: `Your reservation for the movie has been cancelled.`,
-        html: `<p>Your reservation for the movie has been cancelled.</p>`,
+        html: `<p>Your reservation for the movie <strong>${updatedReservation.movie.title}</strong> has been cancelled.</p>`,
       }).then(() => {
         res.status(200).json({
           message: "Reservation cancelled successfully",

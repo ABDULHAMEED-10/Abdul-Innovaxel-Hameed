@@ -24,6 +24,7 @@ router.post("/resetpassword", resetPassword);
 router.put("/setnewpassword", setNewPassword);
 router.get("/profile", authMiddleware, getUserProfile);
 
+// admin routes
 router.delete("/delete/:id", authMiddleware, adminMiddleware, deleteUser);
 router.put("/role/:id", authMiddleware, adminMiddleware, updateUserRole);
 router.get("/", authMiddleware, adminMiddleware, getUsers);

@@ -12,6 +12,7 @@ const router = express.Router();
 
 router.get("/", getShowtimes);
 
+// admin routes
 router.post("/", authMiddleware, adminMiddleware, addShowtime);
 router.put("/:id", authMiddleware, adminMiddleware, updateShowtime);
 router.delete("/:id", authMiddleware, adminMiddleware, deleteShowtime);
