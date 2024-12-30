@@ -38,6 +38,7 @@ const registerUser = (req, res) => {
         to: user.email,
         subject: "Account Created Successfully",
         text: `Welcome to our platform, ${user.name}`,
+        html: `<p>You have successfully created an account on our platform. Now, you can start exploring our services.</p>`,
       });
 
       res
@@ -130,7 +131,44 @@ const getUserProfile = (req, res) => {
       });
     });
 };
+// update user password
+const updateUserPassword = (req, res) => {
+  const { oldPassword, newPassword } = req.body;
 
+  if (!oldPassword || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: "Old password and new password are required." });
+  }
+
+  User.findById(req.user.id)
+    .then((user) => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      return bcrypt
+        .compare(oldPassword, user.password)
+        .then((isPasswordValid) => {
+          if (!isPasswordValid) {
+            return res.status(400).json({ message: "Invalid old password" });
+          }
+
+          return bcrypt.hash(newPassword, 10).then((hashedPassword) => {
+            user.password = hashedPassword;
+            return user.save();
+          });
+        });
+    })
+    .then(() => {
+      res.status(200).json({ message: "Password updated successfully" });
+    })
+    .catch((error) => {
+      res
+        .status(500)
+        .json({ message: "Failed to update password", error: error.message });
+    });
+};
 // Reset user password
 const resetPassword = (req, res) => {
   const { email } = req.body;
@@ -156,7 +194,7 @@ const resetPassword = (req, res) => {
         sendEmail({
           to: user.email,
           subject: "Password Reset Request",
-          text: `Reset your password here: ${process.env.CLIENT_URL}/reset/${resetToken}`,
+          text: `Reset your password here: ${process.env.CLIENT_URL}/setnewpassword/${resetToken}`,
         });
 
         res
@@ -291,4 +329,5 @@ module.exports = {
   getUsers,
   resetPassword,
   setNewPassword,
+  updateUserPassword,
 };

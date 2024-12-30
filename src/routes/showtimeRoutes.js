@@ -10,6 +10,7 @@ const adminMiddleware = require("../middlewares/adminMiddleware");
 
 const router = express.Router();
 
+// public routes
 router.get("/", getShowtimes);
 
 // admin routes

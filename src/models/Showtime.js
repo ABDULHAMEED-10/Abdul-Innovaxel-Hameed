@@ -9,7 +9,7 @@ const showtimeSchema = new mongoose.Schema({
     ref: "Cinema",
     required: true,
   },
-  price: { type: Number, required: true }, // Price per ticket for this showtime in USD
+  price: { type: Number, required: true }, // Price per ticket for this showtime
   reservations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reservation" }],
   seatNumbers: {
     type: [String],

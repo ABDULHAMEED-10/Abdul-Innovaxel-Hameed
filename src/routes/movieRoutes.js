@@ -12,8 +12,11 @@ const adminMiddleware = require("../middlewares/adminMiddleware");
 
 const router = express.Router();
 
+// public routes
 router.get("/", getAllMovies);
 router.get("/genre/:genre", getMovieByGenre);
+
+// admin routes
 router.post(
   "/",
   authMiddleware,
