@@ -156,6 +156,11 @@ const createReservation = (req, res) => {
 const cancelReservation = (req, res) => {
   const { reservationId } = req.params;
 
+  // Validate ObjectId
+  if (!mongoose.Types.ObjectId.isValid(reservationId)) {
+    return res.status(400).json({ message: "Invalid reservation ID" });
+  }
+
   Reservation.findById(reservationId)
     .then((reservation) => {
       if (!reservation) {
@@ -171,13 +176,20 @@ const cancelReservation = (req, res) => {
       reservation.status = "cancelled";
       return reservation.save().then(() => reservation);
     })
-    .then((reservation) => {
+    .then(async (reservation) => {
       return Showtime.findById(reservation.showtime)
         .populate("cinema")
         .then((showtimeDoc) => {
+          if (!showtimeDoc) {
+            return res.status(404).json({ message: "Showtime not found" });
+          }
+
           const cinemaDoc = showtimeDoc.cinema;
+
+          // Update available seats
           cinemaDoc.availableSeats.push(...reservation.seatNumbers);
-          cinemaDoc.availableSeats = [...new Set(cinemaDoc.availableSeats)];
+          cinemaDoc.availableSeats = [...new Set(cinemaDoc.availableSeats)]; // Remove duplicates
+
           return cinemaDoc.save().then(() => reservation);
         });
     })
@@ -186,23 +198,12 @@ const cancelReservation = (req, res) => {
         message: "Reservation cancelled successfully",
         reservation: updatedReservation,
       });
-
-      return sendEmail({
-        from: process.env.SMTP_USER,
-        to: req.user.email,
-        subject: "Reservation Cancellation",
-        text: `Your reservation has been cancelled.`,
-        html: `<p>Your reservation for seats ${updatedReservation.seatNumbers.join(
-          ", "
-        )} has been cancelled.</p>`,
-      });
     })
     .catch((err) => {
       console.error("Error cancelling reservation:", err.message);
-      res.status(500).json({
-        message: "Failed to cancel reservation",
-        error: err.message,
-      });
+      res
+        .status(500)
+        .json({ message: "Failed to cancel reservation", error: err.message });
     });
 };
 
@@ -256,14 +257,6 @@ const getActiveReservations = (req, res) => {
 // Show Cancelled Reservations (admin only)
 const getCancelledReservations = (req, res) => {
   Reservation.find({ status: "cancelled" })
-    .populate("movie")
-    .populate({
-      path: "showtime",
-      populate: {
-        path: "cinema",
-        model: "Cinema",
-      },
-    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
@@ -279,14 +272,7 @@ const getCancelledReservations = (req, res) => {
 // Get all users reservations (admin only)
 const getAllReservations = (req, res) => {
   Reservation.find()
-    .populate("movie")
-    .populate({
-      path: "showtime",
-      populate: {
-        path: "cinema",
-        model: "Cinema",
-      },
-    })
+    .populate("user movie showtime")
     .then((reservations) => {
       res.status(200).json(reservations);
     })
