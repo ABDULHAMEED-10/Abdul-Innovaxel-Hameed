@@ -11,7 +11,22 @@ const registerUser = (req, res) => {
     return res.status(400).json({ message: "All fields are required." });
   }
 
-  User.create({ name, email, password })
+  // Check if the email is already registered
+  User.findOne({ email })
+    .then((existingUser) => {
+      if (existingUser) {
+        return res
+          .status(400)
+          .json({ message: "Email is already registered." });
+      }
+
+      // Hash the password
+      return bcrypt.hash(password, 10);
+    })
+    .then((hashedPassword) => {
+      // Create the user
+      return User.create({ name, email, password: hashedPassword });
+    })
     .then((user) => {
       const token = jwt.sign(
         { id: user._id, email: user.email, role: user.role },
@@ -29,11 +44,11 @@ const registerUser = (req, res) => {
         .status(201)
         .json({ message: "User created successfully", token, user });
     })
-    .catch((error) =>
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to create user", error: error.message })
-    );
+        .json({ message: "Failed to create user", error: error.message });
+    });
 };
 
 // Login user
@@ -66,9 +81,9 @@ const loginUser = (req, res) => {
         res.status(200).json({ message: "Login successful", token, user });
       });
     })
-    .catch((error) =>
-      res.status(500).json({ message: "Login failed", error: error.message })
-    );
+    .catch((error) => {
+      res.status(500).json({ message: "Login failed", error: error.message });
+    });
 };
 
 // Update user profile with avatar
@@ -90,11 +105,11 @@ const updateUserProfile = (req, res) => {
     .then((user) => {
       res.status(200).json({ message: "User updated successfully", user });
     })
-    .catch((error) =>
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to update user", error: error.message })
-    );
+        .json({ message: "Failed to update user", error: error.message });
+    });
 };
 
 // Get user profile
@@ -108,11 +123,12 @@ const getUserProfile = (req, res) => {
 
       res.status(200).json(user);
     })
-    .catch((error) =>
-      res
-        .status(500)
-        .json({ message: "Failed to fetch user profile", error: error.message })
-    );
+    .catch((error) => {
+      res.status(500).json({
+        message: "Failed to fetch user profile",
+        error: error.message,
+      });
+    });
 };
 
 // Reset user password
@@ -134,7 +150,7 @@ const resetPassword = (req, res) => {
       });
 
       user.resetPasswordToken = resetToken;
-      user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+      user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
       return user.save().then(() => {
         sendEmail({
@@ -148,11 +164,11 @@ const resetPassword = (req, res) => {
           .json({ message: "Password reset link sent to your email" });
       });
     })
-    .catch((error) =>
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to send reset email", error: error.message })
-    );
+        .json({ message: "Failed to send reset email", error: error.message });
+    });
 };
 
 // Set new password
@@ -182,18 +198,16 @@ const setNewPassword = (req, res) => {
           user.resetPasswordToken = undefined;
           user.resetPasswordExpire = undefined;
 
-          return user
-            .save()
-            .then(() =>
-              res.status(200).json({ message: "Password updated successfully" })
-            );
+          return user.save().then(() => {
+            res.status(200).json({ message: "Password updated successfully" });
+          });
         });
       })
-      .catch((error) =>
+      .catch((error) => {
         res
           .status(500)
-          .json({ message: "Failed to update password", error: error.message })
-      );
+          .json({ message: "Failed to update password", error: error.message });
+      });
   });
 };
 
@@ -204,11 +218,11 @@ const getUsers = (req, res) => {
     .then((users) => {
       res.status(200).json(users);
     })
-    .catch((error) =>
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to fetch users", error: error.message })
-    );
+        .json({ message: "Failed to fetch users", error: error.message });
+    });
 };
 
 // Update user role (Admin only)
@@ -229,16 +243,16 @@ const updateUserRole = (req, res) => {
       user.role = role;
       return user.save();
     })
-    .then((updatedUser) =>
+    .then((updatedUser) => {
       res
         .status(200)
-        .json({ message: "Role updated successfully", user: updatedUser })
-    )
-    .catch((error) =>
+        .json({ message: "Role updated successfully", user: updatedUser });
+    })
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to update role", error: error.message })
-    );
+        .json({ message: "Failed to update role", error: error.message });
+    });
 };
 
 // Delete user (Admin only)
@@ -253,11 +267,11 @@ const deleteUser = (req, res) => {
 
       res.status(200).json({ message: "User deleted successfully" });
     })
-    .catch((error) =>
+    .catch((error) => {
       res
         .status(500)
-        .json({ message: "Failed to delete user", error: error.message })
-    );
+        .json({ message: "Failed to delete user", error: error.message });
+    });
 };
 
 // Logout user
