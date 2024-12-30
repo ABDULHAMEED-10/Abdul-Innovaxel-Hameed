@@ -3,6 +3,49 @@ const sendEmail = require("../utils/sendEmail");
 const Showtime = require("../models/Showtime");
 const Cinema = require("../models/Cinema");
 
+// Get Reserved Seats Info
+const getReservedSeatsInfo = (req, res) => {
+  const { showtimeId } = req.params;
+
+  Showtime.findById(showtimeId)
+    .populate("cinema")
+    .then((showtimeDoc) => {
+      if (!showtimeDoc) {
+        return res.status(404).json({ message: "Showtime not found" });
+      }
+
+      const cinemaDoc = showtimeDoc.cinema;
+
+      // Calculate the number of reserved seats
+      return Reservation.find({ showtime: showtimeId }).then((reservations) => {
+        const reservedSeats = reservations.flatMap(
+          (reservation) => reservation.seatNumbers
+        );
+        const remainingSeats = Array.from(
+          { length: cinemaDoc.capacity },
+          (_, i) => (i + 1).toString()
+        ).filter((seat) => !reservedSeats.includes(seat));
+        const reservedSeatsCount = reservedSeats.length;
+        const remainingSeatsCount = remainingSeats.length;
+
+        res.status(200).json({
+          cinemaCapacity: cinemaDoc.capacity,
+          reservedSeatsCount,
+          remainingSeatsCount,
+          reservedSeats,
+          remainingSeats,
+        });
+      });
+    })
+    .catch((err) => {
+      console.error("Error getting reserved seats info:", err.message);
+      res.status(500).json({
+        message: "Failed to get reserved seats info",
+        error: err.message,
+      });
+    });
+};
+
 // Create a Reservation
 const createReservation = (req, res) => {
   const { user, movie, showtime, seatNumbers } = req.body;
@@ -15,31 +58,47 @@ const createReservation = (req, res) => {
       }
 
       const cinemaDoc = showtimeDoc.cinema;
-      const numberOfSeats = seatNumbers.length;
-      const reservedSeats = showtimeDoc.reservations.reduce(
-        (acc, reservation) => acc + reservation.seatNumbers.length,
-        0 // Sum of all reserved seats
-      );
 
       // Check if there are enough remaining seats
-      if (cinemaDoc.remainingSeats < numberOfSeats) {
+      if (
+        cinemaDoc.capacity - showtimeDoc.reservations.length <
+        seatNumbers.length
+      ) {
         return res.status(400).json({ message: "Not enough remaining seats" });
       }
 
-      // Calculate total price
-      const totalPrice = showtimeDoc.price * numberOfSeats;
+      // Check if the requested seat numbers are available
+      return Reservation.find({ showtime }).then((reservations) => {
+        const reservedSeats = reservations.flatMap(
+          (reservation) => reservation.seatNumbers
+        );
+        const unavailableSeats = seatNumbers.filter((seat) =>
+          reservedSeats.includes(seat)
+        );
 
-      // Create a new reservation
-      return Reservation.create({
-        user,
-        movie,
-        showtime,
-        seatNumbers,
-        totalPrice,
-      }).then((reservation) => {
-        // Update remaining seats
-        cinemaDoc.remainingSeats -= seatNumbers.length;
-        return cinemaDoc.save().then(() => reservation);
+        if (unavailableSeats.length > 0) {
+          return res.status(400).json({
+            message: `Seats ${unavailableSeats.join(
+              ", "
+            )} are already reserved`,
+          });
+        }
+
+        // Calculate total price
+        const totalPrice = showtimeDoc.price * seatNumbers.length;
+
+        // Create a new reservation
+        return Reservation.create({
+          user,
+          movie,
+          showtime,
+          seatNumbers,
+          totalPrice,
+        }).then((reservation) => {
+          // Add the new reservation to the showtime's reservations
+          showtimeDoc.reservations.push(reservation._id);
+          return showtimeDoc.save().then(() => reservation);
+        });
       });
     })
     .then((reservation) => {
@@ -108,9 +167,7 @@ const cancelReservation = (req, res) => {
           const cinemaDoc = showtimeDoc.cinema;
 
           // Update remaining seats
-          cinemaDoc.remainingSeats += reservation.seatNumbers;
-          // update total price
-          cinemaDoc.totalPrice -= reservation.totalPrice;
+          cinemaDoc.capacity += reservation.seatNumbers.length;
           return cinemaDoc.save().then(() => reservation);
         });
     })
@@ -143,6 +200,13 @@ const getUserReservations = (req, res) => {
 
   Reservation.find({ user: userId })
     .populate("movie")
+    .populate({
+      path: "showtime",
+      populate: {
+        path: "cinema",
+        model: "Cinema",
+      },
+    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
@@ -158,6 +222,13 @@ const getUserReservations = (req, res) => {
 const getActiveReservations = (req, res) => {
   Reservation.find({ status: "active" })
     .populate("movie")
+    .populate({
+      path: "showtime",
+      populate: {
+        path: "cinema",
+        model: "Cinema",
+      },
+    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
@@ -174,6 +245,13 @@ const getActiveReservations = (req, res) => {
 const getCancelledReservations = (req, res) => {
   Reservation.find({ status: "cancelled" })
     .populate("movie")
+    .populate({
+      path: "showtime",
+      populate: {
+        path: "cinema",
+        model: "Cinema",
+      },
+    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
@@ -186,10 +264,17 @@ const getCancelledReservations = (req, res) => {
     });
 };
 
-// get all users reservations (admin only)
+// Get all users reservations (admin only)
 const getAllReservations = (req, res) => {
   Reservation.find()
     .populate("movie")
+    .populate({
+      path: "showtime",
+      populate: {
+        path: "cinema",
+        model: "Cinema",
+      },
+    })
     .then((reservations) => {
       res.status(200).json(reservations);
     })
@@ -209,4 +294,5 @@ module.exports = {
   getActiveReservations,
   getCancelledReservations,
   getAllReservations,
+  getReservedSeatsInfo,
 };

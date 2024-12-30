@@ -11,6 +11,14 @@ const showtimeSchema = new mongoose.Schema({
   },
   price: { type: Number, required: true }, // Price per ticket for this showtime in USD
   reservations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reservation" }],
+  seatNumbers: {
+    type: [String],
+    default: function () {
+      return Array.from({ length: this.cinema.capacity }, (_, i) =>
+        (i + 1).toString()
+      );
+    },
+  },
 });
 
 module.exports = mongoose.model("Showtime", showtimeSchema);

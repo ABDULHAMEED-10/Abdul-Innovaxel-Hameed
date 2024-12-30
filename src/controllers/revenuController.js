@@ -1,4 +1,5 @@
 const Showtime = require("../models/Showtime");
+const Reservation = require("../models/Reservation");
 
 const calculateRevenue = (req, res) => {
   const { startDate, endDate } = req.query;
@@ -28,24 +29,19 @@ const calculateRevenue = (req, res) => {
     {
       $lookup: {
         from: "reservations",
-        let: { reservationIds: "$reservations" },
-        pipeline: [
-          { $match: { $expr: { $in: ["$_id", "$$reservationIds"] } } },
-          { $match: { status: "active" } },
-        ],
+        localField: "reservations",
+        foreignField: "_id",
         as: "activeReservations",
       },
     },
-    // Add the total seats for active reservations
+    // Filter only active reservations
     {
       $addFields: {
-        totalSeats: {
-          $sum: {
-            $map: {
-              input: "$activeReservations",
-              as: "reservation",
-              in: { $size: "$$reservation.seatNumbers" },
-            },
+        activeReservations: {
+          $filter: {
+            input: "$activeReservations",
+            as: "reservation",
+            cond: { $eq: ["$$reservation.status", "active"] },
           },
         },
       },
@@ -53,7 +49,9 @@ const calculateRevenue = (req, res) => {
     // Calculate revenue per showtime
     {
       $addFields: {
-        showtimeRevenue: { $multiply: ["$price", "$totalSeats"] },
+        showtimeRevenue: {
+          $sum: "$activeReservations.totalPrice",
+        },
       },
     },
     // Summarize total revenue

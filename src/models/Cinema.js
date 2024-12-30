@@ -14,8 +14,8 @@ const CinemaSchema = new Schema({
   capacity: {
     type: Number,
     required: true,
+    default: 800,
   },
-  remainingSeats: { type: Number, required: true },
 });
 
 module.exports = mongoose.model("Cinema", CinemaSchema);
