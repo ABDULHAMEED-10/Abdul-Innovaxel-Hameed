@@ -17,11 +17,6 @@ setInterval(unlockExpiredSeats, 60 * 1000);
 const getReservedSeatsInfo = (req, res) => {
   const { showtimeId } = req.params;
 
-  // Validate ObjectId
-  if (!mongoose.Types.ObjectId.isValid(showtimeId)) {
-    return res.status(400).json({ message: "Invalid showtime ID" });
-  }
-
   Showtime.findById(showtimeId)
     .populate("cinema")
     .then((showtimeDoc) => {
@@ -29,25 +24,22 @@ const getReservedSeatsInfo = (req, res) => {
         return res.status(404).json({ message: "Showtime not found" });
       }
 
-      const cinemaDoc = showtimeDoc.cinema;
+      Reservation.find({
+        showtime: showtimeId,
+        status: { $in: ["active", "locked"] },
+      }).then((reservations) => {
+        const reservedSeats = reservations.flatMap(
+          (reservation) => reservation.seatNumbers
+        );
 
-      // Calculate the number of reserved seats
-      return Reservation.find({ showtime: showtimeId }).then((reservations) => {
-        const reservedSeats = reservations
-          .flatMap((reservation) => reservation.seatNumbers)
-          .filter((seat) => seat !== null && seat !== undefined); // Filter out null or undefined values
-
-        const remainingSeats = cinemaDoc.availableSeats.filter(
+        const remainingSeats = showtimeDoc.cinema.availableSeats.filter(
           (seat) => !reservedSeats.includes(seat)
         );
 
-        const reservedSeatsCount = reservedSeats.length;
-        const remainingSeatsCount = remainingSeats.length;
-
         res.status(200).json({
-          cinemaCapacity: cinemaDoc.capacity,
-          reservedSeatsCount,
-          remainingSeatsCount,
+          cinemaCapacity: showtimeDoc.cinema.capacity,
+          reservedSeatsCount: reservedSeats.length,
+          remainingSeatsCount: remainingSeats.length,
           reservedSeats,
           remainingSeats,
         });
@@ -66,7 +58,6 @@ const getReservedSeatsInfo = (req, res) => {
 const createReservation = (req, res) => {
   const { user, movie, showtime, seatNumbers } = req.body;
 
-  // Validate ObjectId
   if (
     !mongoose.Types.ObjectId.isValid(movie) ||
     !mongoose.Types.ObjectId.isValid(showtime)
@@ -74,7 +65,6 @@ const createReservation = (req, res) => {
     return res.status(400).json({ message: "Invalid movie or showtime ID" });
   }
 
-  // Ensure seatNumbers is an array and not empty
   if (!Array.isArray(seatNumbers) || seatNumbers.length === 0) {
     return res
       .status(400)
@@ -88,10 +78,10 @@ const createReservation = (req, res) => {
         return res.status(404).json({ message: "Showtime not found" });
       }
 
-      const cinemaDoc = showtimeDoc.cinema;
-
-      // Check if the requested seat numbers are available
-      return Reservation.find({ showtime }).then((reservations) => {
+      Reservation.find({
+        showtime,
+        status: { $in: ["active", "locked"] },
+      }).then((reservations) => {
         const reservedSeats = reservations.flatMap(
           (reservation) => reservation.seatNumbers
         );
@@ -109,77 +99,56 @@ const createReservation = (req, res) => {
 
         // Lock the seats
         const lockExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
-        return Reservation.create({
+
+        Reservation.create({
           user,
           movie,
           showtime,
           seatNumbers,
-          totalPrice: 0, // No price for locked seats
-          status: "locked",
+          totalPrice: showtimeDoc.price * seatNumbers.length,
+          status: "active",
           lockExpiresAt,
-        }).then((lockedReservation) => {
-          // Calculate total price
-          const totalPrice = showtimeDoc.price * seatNumbers.length;
+        })
+          .then((reservation) => {
+            res.status(201).json({
+              message: "Reservation created successfully",
+              reservation,
+            });
 
-          // Create a new reservation
-          return Reservation.create({
-            user,
-            movie,
-            showtime,
-            seatNumbers,
-            totalPrice,
-            status: "active",
-          }).then((reservation) => {
-            // Update remaining seats
-            cinemaDoc.availableSeats = cinemaDoc.availableSeats.filter(
-              (seat) => !seatNumbers.includes(seat)
-            );
-            return cinemaDoc.save().then(() => {
-              // Add the new reservation to the showtime's reservations
-              showtimeDoc.reservations.push(reservation._id);
-              return showtimeDoc.save().then(() => {
-                // Remove the lock
-                return Reservation.findByIdAndDelete(
-                  lockedReservation._id
-                ).then(() => reservation);
-              });
+            // Send confirmation email
+            sendEmail({
+              from: process.env.SMTP_USER,
+              to: req.user.email,
+              subject: "Reservation Confirmation",
+              text: `Your reservation for the movie has been confirmed.`,
+              html: `
+                  <p>Your reservation for the movie <strong>${
+                    reservation.movie
+                  }</strong> has been confirmed.</p>
+                  <p><strong>Seats:</strong> ${reservation.seatNumbers.join(
+                    ", "
+                  )}</p>
+                  <p><strong>Total Price:</strong> $${reservation.totalPrice.toFixed(
+                    2
+                  )}</p>
+                `,
+            });
+          })
+          .catch((err) => {
+            console.error("Error creating reservation:", err.message);
+            res.status(500).json({
+              message: "Failed to create reservation",
+              error: err.message,
             });
           });
-        });
-      });
-    })
-    .then((reservation) => {
-      res.status(201).json({
-        message: "Reservation created successfully",
-        reservation,
-      });
-
-      // Send confirmation email
-      return sendEmail({
-        from: process.env.SMTP_USER,
-        to: req.user.email,
-        subject: "Reservation Confirmation",
-        text: `Your reservation for the movie has been confirmed.`,
-        html: `
-          <p>Your reservation for the movie <strong>${
-            reservation.movie.title
-          }</strong> has been confirmed.</p>
-          <p><strong>Cinema:</strong> ${reservation.showtime.cinema.name}</p>
-          <p><strong>Showtime:</strong> ${reservation.showtime.date} at ${
-          reservation.showtime.time
-        }</p>
-          <p><strong>Seats:</strong> ${reservation.seatNumbers.join(", ")}</p>
-          <p><strong>Total Price:</strong> $${reservation.totalPrice.toFixed(
-            2
-          )}</p>
-        `,
       });
     })
     .catch((err) => {
-      console.error("Error creating reservation:", err.message);
-      res
-        .status(500)
-        .json({ message: "Failed to create reservation", error: err.message });
+      console.error("Error processing reservation:", err.message);
+      res.status(500).json({
+        message: "Failed to process reservation",
+        error: err.message,
+      });
     });
 };
 
@@ -193,6 +162,12 @@ const cancelReservation = (req, res) => {
         return res.status(404).json({ message: "Reservation not found" });
       }
 
+      if (reservation.status === "cancelled") {
+        return res
+          .status(400)
+          .json({ message: "Reservation is already cancelled" });
+      }
+
       reservation.status = "cancelled";
       return reservation.save().then(() => reservation);
     })
@@ -200,39 +175,34 @@ const cancelReservation = (req, res) => {
       return Showtime.findById(reservation.showtime)
         .populate("cinema")
         .then((showtimeDoc) => {
-          if (!showtimeDoc) {
-            return res.status(404).json({ message: "Showtime not found" });
-          }
-
           const cinemaDoc = showtimeDoc.cinema;
-
-          // Update available seats
           cinemaDoc.availableSeats.push(...reservation.seatNumbers);
-          cinemaDoc.availableSeats = [...new Set(cinemaDoc.availableSeats)]; // Remove duplicates
-
+          cinemaDoc.availableSeats = [...new Set(cinemaDoc.availableSeats)];
           return cinemaDoc.save().then(() => reservation);
         });
     })
     .then((updatedReservation) => {
-      // Send cancellation email
+      res.status(200).json({
+        message: "Reservation cancelled successfully",
+        reservation: updatedReservation,
+      });
+
       return sendEmail({
         from: process.env.SMTP_USER,
         to: req.user.email,
         subject: "Reservation Cancellation",
-        text: `Your reservation for the movie has been cancelled.`,
-        html: `<p>Your reservation for the movie <strong>${updatedReservation.movie.title}</strong> has been cancelled.</p>`,
-      }).then(() => {
-        res.status(200).json({
-          message: "Reservation cancelled successfully",
-          reservation: updatedReservation,
-        });
+        text: `Your reservation has been cancelled.`,
+        html: `<p>Your reservation for seats ${updatedReservation.seatNumbers.join(
+          ", "
+        )} has been cancelled.</p>`,
       });
     })
     .catch((err) => {
       console.error("Error cancelling reservation:", err.message);
-      res
-        .status(500)
-        .json({ message: "Failed to cancel reservation", error: err.message });
+      res.status(500).json({
+        message: "Failed to cancel reservation",
+        error: err.message,
+      });
     });
 };
 
