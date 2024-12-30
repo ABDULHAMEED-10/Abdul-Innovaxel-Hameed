@@ -1,6 +1,8 @@
 const Movie = require("../models/Movie");
+const Showtime = require("../models/Showtime");
+const Reservation = require("../models/Reservation");
 
-// Get all movies
+// Get all movies with video and image uploads
 const getAllMovies = (req, res) => {
   Movie.find()
     .then((movies) => res.status(200).json(movies))
@@ -11,7 +13,7 @@ const getAllMovies = (req, res) => {
     );
 };
 
-// Add a new movie with video and image uploads
+// Add a new movie with video and image uploads (Admin only)
 const addMovie = (req, res) => {
   const { title, description, genres, showtimes } = req.body;
 
@@ -34,7 +36,7 @@ const addMovie = (req, res) => {
     );
 };
 
-// Update movie details with video and image uploads
+// Update movie details with video and image uploads (Admin only)
 const updateMovie = (req, res) => {
   const { id } = req.params;
   const { title, description, genres, showtimes } = req.body;
@@ -82,7 +84,7 @@ const getMovieByGenre = (req, res) => {
     );
 };
 
-// Delete a movie
+// Delete a movie by ID and remove associated showtimes and reservations (if any) (Admin only)
 const deleteMovie = (req, res) => {
   const { id } = req.params;
 
@@ -92,13 +94,29 @@ const deleteMovie = (req, res) => {
         return res.status(404).json({ message: "Movie not found" });
       }
 
-      res.status(200).json({ message: "Movie deleted successfully" });
+      // Find and delete associated showtimes
+      return Showtime.find({ movie: id }).then((showtimes) => {
+        const showtimeIds = showtimes.map((showtime) => showtime._id);
+
+        // Delete associated reservations
+        return Reservation.deleteMany({ showtime: { $in: showtimeIds } })
+          .then(() => {
+            // Delete associated showtimes
+            return Showtime.deleteMany({ movie: id });
+          })
+          .then(() => {
+            res.status(200).json({
+              message:
+                "Movie, showtimes, and reservations deleted successfully",
+            });
+          });
+      });
     })
-    .catch((err) =>
+    .catch((err) => {
       res
         .status(500)
-        .json({ message: "Failed to delete movie", error: err.message })
-    );
+        .json({ message: "Failed to delete movie", error: err.message });
+    });
 };
 
 module.exports = {
