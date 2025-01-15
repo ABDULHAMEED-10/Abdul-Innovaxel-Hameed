@@ -114,25 +114,6 @@ const createReservation = (req, res) => {
               message: "Reservation created successfully",
               reservation,
             });
-
-            // Send confirmation email
-            sendEmail({
-              from: process.env.SMTP_USER,
-              to: req.user.email,
-              subject: "Reservation Confirmation",
-              text: `Your reservation for the movie has been confirmed.`,
-              html: `
-                  <p>Your reservation for the movie <strong>${
-                    reservation.movie
-                  }</strong> has been confirmed.</p>
-                  <p><strong>Seats:</strong> ${reservation.seatNumbers.join(
-                    ", "
-                  )}</p>
-                  <p><strong>Total Price:</strong> $${reservation.totalPrice.toFixed(
-                    2
-                  )}</p>
-                `,
-            });
           })
           .catch((err) => {
             console.error("Error creating reservation:", err.message);
